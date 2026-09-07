@@ -252,11 +252,16 @@ def render(items: list[Item], problems: list[str], cfg: dict) -> str:
 
     body = "".join(blocks) or '<p class="empty">Nothing new inside the time window.</p>'
 
-    stamp = "%s, %s %d &middot; built %s" % (
-        now.strftime("%A"),
-        now.strftime("%B"),
-        now.day,
-        now.strftime("%I:%M %p").lstrip("0").lower(),
+    stamp = (
+        f'<span>{now.strftime("%A")}, {now.strftime("%B")} {now.day}</span>'
+        f'<span class="sep">/</span>'
+        f'<span>built {now.strftime("%I:%M %p").lstrip("0").lower()}</span>'
+    )
+
+    n_sources = len({i.source for i in items})
+    count = (
+        f"{len(items)} item{'s' if len(items) != 1 else ''} "
+        f"from {n_sources} source{'s' if n_sources != 1 else ''}"
     )
 
     tpl = (ROOT / "template.html").read_text(encoding="utf-8")
@@ -265,6 +270,7 @@ def render(items: list[Item], problems: list[str], cfg: dict) -> str:
         ("__STAMP__", stamp),
         ("__BODY__", body),
         ("__NOTE__", note),
+        ("__COUNT__", count),
     ):
         tpl = tpl.replace(token, value)
     return tpl

@@ -5,70 +5,191 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;450;500&display=swap">
 <style>
   :root {
-    --bg:#faf9f7; --card:#ffffff; --ink:#191817; --muted:#78736c;
-    --rule:#e7e3dc; --accent:#8a6240; --shadow:0 1px 2px rgba(0,0,0,.04);
+    --ground:#f7f8fa;
+    --ink:#15181d;
+    --muted:#697079;
+    --faint:#9aa1aa;
+    --rule:#e3e6eb;
+    --hair:#eef0f3;
+    --accent:#215a75;
+    --serif:"Newsreader", Georgia, "Times New Roman", serif;
+    --sans:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg:#121211; --card:#1c1b1a; --ink:#eceae7; --muted:#918b83;
-      --rule:#2c2a28; --accent:#c9a077; --shadow:none;
+    :root:not([data-theme="light"]) {
+      --ground:#0f1114;
+      --ink:#e7eaee;
+      --muted:#8b929c;
+      --faint:#6b727b;
+      --rule:#262a31;
+      --hair:#1d2127;
+      --accent:#7fb6d1;
     }
   }
-  * { box-sizing: border-box; }
+  :root[data-theme="dark"] {
+    --ground:#0f1114;
+    --ink:#e7eaee;
+    --muted:#8b929c;
+    --faint:#6b727b;
+    --rule:#262a31;
+    --hair:#1d2127;
+    --accent:#7fb6d1;
+  }
+
+  * { box-sizing:border-box; }
   body {
-    margin:0; background:var(--bg); color:var(--ink);
-    font:16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:16px;
+    line-height:1.5;
     -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
   }
-  header {
-    padding:28px 20px 18px; max-width:680px; margin:0 auto;
-    border-bottom:1px solid var(--rule);
+  .wrap { max-width:640px; margin:0 auto; padding:0 22px; }
+
+  /* ---- masthead ---- */
+  header { padding:38px 0 20px; border-bottom:1px solid var(--ink); }
+  h1 {
+    margin:0;
+    font-family:var(--serif);
+    font-optical-sizing:auto;
+    font-size:34px;
+    font-weight:500;
+    letter-spacing:-.015em;
+    line-height:1.05;
   }
-  h1 { margin:0; font-size:26px; letter-spacing:-.02em; font-weight:650; }
-  .stamp { margin:5px 0 0; color:var(--muted); font-size:13px; }
-  main { max-width:680px; margin:0 auto; padding:0 20px 64px; }
+  .stamp {
+    margin:10px 0 0;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 10px;
+    font-family:var(--mono);
+    font-size:11px;
+    font-weight:400;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+  .stamp .sep { color:var(--faint); }
+
+  /* ---- sections ---- */
   section { margin-top:34px; }
   h2 {
-    margin:0 0 12px; font-size:12px; font-weight:700; letter-spacing:.09em;
-    text-transform:uppercase; color:var(--accent);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin:0 0 4px;
+    font-family:var(--mono);
+    font-size:11px;
+    font-weight:500;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--accent);
   }
+  h2::after {
+    content:"";
+    flex:1;
+    height:1px;
+    background:var(--rule);
+  }
+
+  /* ---- items: hairline-separated entries, not cards ---- */
   ul { list-style:none; margin:0; padding:0; }
-  .item {
-    background:var(--card); border:1px solid var(--rule); border-radius:10px;
-    padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow);
-  }
+  .item { padding:18px 0; border-bottom:1px solid var(--hair); }
+  .item:last-child { border-bottom:0; }
+
   .meta {
-    display:flex; gap:8px; align-items:baseline;
-    font-size:11px; letter-spacing:.05em; text-transform:uppercase;
-    color:var(--muted); margin-bottom:6px;
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    font-family:var(--mono);
+    font-size:10.5px;
+    font-weight:500;
+    letter-spacing:.11em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:7px;
   }
-  .src { font-weight:650; }
-  .age:before { content:"\00b7"; margin-right:8px; }
+  .src { color:var(--ink); }
+  .age { color:var(--faint); font-variant-numeric:tabular-nums; }
+  .age::before { content:"\00b7"; margin-right:8px; color:var(--faint); }
+
   .hed {
-    display:block; color:var(--ink); text-decoration:none;
-    font-size:17px; line-height:1.35; font-weight:600; letter-spacing:-.01em;
+    display:block;
+    font-family:var(--serif);
+    font-optical-sizing:auto;
+    font-size:20px;
+    font-weight:500;
+    line-height:1.28;
+    letter-spacing:-.011em;
+    color:var(--ink);
+    text-decoration:none;
+    text-wrap:balance;
+  }
+  .hed:focus-visible {
+    outline:2px solid var(--accent);
+    outline-offset:3px;
+    border-radius:2px;
+  }
+  @media (hover:hover) {
+    .hed:hover { color:var(--accent); }
   }
   .hed:active { color:var(--accent); }
-  .sum { margin:7px 0 0; color:var(--muted); font-size:14.5px; line-height:1.45; }
-  .empty { color:var(--muted); margin-top:34px; }
-  .problems {
-    margin-top:40px; font-size:12.5px; color:var(--muted);
-    border-top:1px solid var(--rule); padding-top:14px;
+
+  .sum {
+    margin:7px 0 0;
+    font-size:14.5px;
+    line-height:1.5;
+    color:var(--muted);
+    max-width:58ch;
   }
-  .problems summary { cursor:pointer; }
-  .problems ul { margin:8px 0 0; padding-left:18px; list-style:disc; }
-  .problems li { margin:3px 0; }
-  @media (hover:hover) { .hed:hover { color:var(--accent); } }
+
+  .empty { color:var(--muted); margin-top:34px; font-size:15px; }
+
+  /* ---- failure disclosure ---- */
+  .problems {
+    margin:44px 0 0;
+    padding:14px 0 0;
+    border-top:1px solid var(--rule);
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.04em;
+    color:var(--faint);
+  }
+  .problems summary { cursor:pointer; text-transform:uppercase; letter-spacing:.11em; }
+  .problems summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  .problems ul { margin:10px 0 0; padding-left:16px; list-style:disc; }
+  .problems li { margin:4px 0; line-height:1.45; }
+
+  footer {
+    padding:22px 0 56px;
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--faint);
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>__TITLE__</h1>
-  <p class="stamp">__STAMP__</p>
-</header>
-<main>__BODY____NOTE__</main>
+<div class="wrap">
+  <header>
+    <h1>__TITLE__</h1>
+    <p class="stamp">__STAMP__</p>
+  </header>
+  <main>__BODY____NOTE__</main>
+  <footer>__COUNT__</footer>
+</div>
 </body>
 </html>
