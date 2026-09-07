@@ -20,7 +20,23 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import feedparser
+import requests
 import yaml
+
+# Substack (and others behind Cloudflare) reject feedparser's default agent
+# from datacenter IPs, which is where the scheduled build runs. Ask the way a
+# browser would.
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "application/rss+xml, application/atom+xml, application/xml;q=0.9, "
+        "text/xml;q=0.8, text/html;q=0.7, */*;q=0.5"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 ROOT = Path(__file__).parent
 CONFIG = ROOT / "config.yaml"
@@ -114,6 +130,15 @@ def pick_link(entry, feed, fallback: str = "") -> str:
     return ""
 
 
+def fetch_feed(url: str):
+    """Fetch and parse a feed, keeping the HTTP status for diagnostics."""
+    resp = requests.get(url, headers=HEADERS, timeout=25, allow_redirects=True)
+    resp.raise_for_status()
+    parsed = feedparser.parse(resp.content)
+    parsed.http_status = resp.status_code
+    return parsed
+
+
 def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
@@ -162,12 +187,14 @@ def collect(cfg: dict) -> tuple[list[Item], list[str]]:
     for src in cfg.get("sources", []):
         name = src.get("name", "Unnamed")
         try:
-            feed = feedparser.parse(src["url"])
-        except Exception as exc:  # network, DNS, malformed - keep going
-            problems.append(f"{name}: {exc}")
+            feed = fetch_feed(src["url"])
+        except Exception as exc:  # network, DNS, HTTP error - keep going
+            problems.append(f"{name}: {type(exc).__name__} - {exc}")
             continue
         if not feed.entries:
-            problems.append(f"{name}: no entries returned")
+            problems.append(
+                f"{name}: parsed 0 entries (HTTP {feed.http_status})"
+            )
             continue
 
         kept = 0
