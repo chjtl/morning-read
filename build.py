@@ -13,8 +13,8 @@ import calendar
 import html
 import re
 import sys
-import time
-from dataclasses import dataclass
+import urllib.parse as up
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -23,9 +23,12 @@ import feedparser
 import requests
 import yaml
 
-# Substack (and others behind Cloudflare) reject feedparser's default agent
-# from datacenter IPs, which is where the scheduled build runs. Ask the way a
-# browser would.
+ROOT = Path(__file__).parent
+CONFIG = ROOT / "config.yaml"
+OUT = ROOT / "docs" / "index.html"
+
+# Ask the way a browser would. Doesn't defeat an IP block, but some feeds do
+# reject the default library agent.
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -38,13 +41,32 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-ROOT = Path(__file__).parent
-CONFIG = ROOT / "config.yaml"
-OUT = ROOT / "docs" / "index.html"
+# Substack sits behind Cloudflare and returns 403 to datacenter IPs - which is
+# exactly where the scheduled build runs, even though the same request works
+# fine from a home connection. rss2json reaches it and hands back JSON. This
+# was verified on a GitHub runner against every other proxy option, all of
+# which got challenged too.
+RSS2JSON = "https://api.rss2json.com/v1/api.json?rss_url={}"
+BLOCKED = {401, 403, 406, 429, 503}
 
 TAGS = re.compile(r"<[^>]+>")
 WHITESPACE = re.compile(r"\s+")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+# Periods that end these do not end a sentence.
+ABBREV = {
+    "vs", "e.g", "i.e", "etc", "approx", "est", "no", "inc", "corp", "co",
+    "ltd", "mr", "mrs", "ms", "dr", "jr", "sr", "st", "ave", "blvd", "sq",
+    "ft", "u.s", "u.k", "d.c", "a.m", "p.m",
+}
+
+
+@dataclass
+class Feed:
+    entries: list = field(default_factory=list)
+    link: str = ""
+    status: int | None = None
+    via: str = "direct"
 
 
 @dataclass
@@ -68,13 +90,60 @@ class Item:
         return f"{int(mins // (60 * 24))}d ago"
 
 
-# Periods that end these do not end a sentence.
-ABBREV = {
-    "vs", "e.g", "i.e", "etc", "approx", "est", "no", "inc", "corp", "co",
-    "ltd", "mr", "mrs", "ms", "dr", "jr", "sr", "st", "ave", "blvd", "sq",
-    "ft", "u.s", "u.k", "d.c", "a.m", "p.m",
-}
+# --------------------------------------------------------------------------
+# fetching
+# --------------------------------------------------------------------------
 
+def fetch_direct(url: str) -> Feed:
+    resp = requests.get(url, headers=HEADERS, timeout=25, allow_redirects=True)
+    resp.raise_for_status()
+    parsed = feedparser.parse(resp.content)
+    return Feed(list(parsed.entries), parsed.feed.get("link", ""), resp.status_code)
+
+
+def fetch_via_rss2json(url: str) -> Feed:
+    resp = requests.get(
+        RSS2JSON.format(up.quote(url, safe="")), headers=HEADERS, timeout=30
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    if payload.get("status") != "ok":
+        raise RuntimeError("rss2json: " + str(payload.get("message", "not ok"))[:80])
+
+    entries = [
+        {
+            "title": row.get("title", ""),
+            "link": row.get("link", ""),
+            "summary": row.get("description", ""),
+            "content": [{"value": row.get("content", "")}],
+            "published": row.get("pubDate", ""),
+        }
+        for row in payload.get("items", [])
+    ]
+    return Feed(
+        entries,
+        payload.get("feed", {}).get("link", ""),
+        resp.status_code,
+        via="rss2json",
+    )
+
+
+def fetch_feed(url: str, via: str = "auto") -> Feed:
+    """Fetch a feed, routing around an IP block if we hit one."""
+    if via == "rss2json":
+        return fetch_via_rss2json(url)
+    try:
+        return fetch_direct(url)
+    except requests.HTTPError as exc:
+        code = exc.response.status_code if exc.response is not None else None
+        if via == "auto" and code in BLOCKED:
+            return fetch_via_rss2json(url)
+        raise
+
+
+# --------------------------------------------------------------------------
+# cleaning
+# --------------------------------------------------------------------------
 
 def _complete(text: str) -> bool:
     """True if text looks like a whole thought rather than a bad split."""
@@ -83,8 +152,7 @@ def _complete(text: str) -> bool:
     last = text.rstrip(".").rsplit(" ", 1)[-1].lower()
     if last in ABBREV:
         return False
-    # A lone initial, e.g. "George W."
-    return not (len(last) == 1 and last.isalpha())
+    return not (len(last) == 1 and last.isalpha())  # a lone initial
 
 
 def one_line(raw: str, limit: int = 200) -> str:
@@ -93,12 +161,10 @@ def one_line(raw: str, limit: int = 200) -> str:
     if not text:
         return ""
 
-    # Grow a candidate sentence by sentence until it is long enough to stand
-    # on its own and isn't a mis-split on an abbreviation or open paren.
     parts = SENTENCE_END.split(text)
     candidate = ""
     for part in parts:
-        candidate = f"{candidate} {part}".strip()
+        candidate = (candidate + " " + part).strip()
         if len(candidate) >= 60 and _complete(candidate):
             break
     else:
@@ -107,36 +173,6 @@ def one_line(raw: str, limit: int = 200) -> str:
     if len(candidate) > limit:
         candidate = candidate[:limit].rsplit(" ", 1)[0].rstrip(",;:-(") + "…"
     return candidate
-
-
-def pick_link(entry, feed, fallback: str = "") -> str:
-    """A usable URL for an item.
-
-    Podcast feeds routinely omit <link> on items and carry only an audio
-    enclosure, so fall back rather than dropping the item on the floor.
-    """
-    if entry.get("link"):
-        return entry["link"]
-    for ref in entry.get("links", []) or []:
-        if ref.get("rel") == "alternate" and ref.get("href"):
-            return ref["href"]
-    if fallback:
-        return fallback
-    if feed.feed.get("link"):
-        return feed.feed["link"]
-    for ref in entry.get("links", []) or []:
-        if ref.get("href"):
-            return ref["href"]
-    return ""
-
-
-def fetch_feed(url: str):
-    """Fetch and parse a feed, keeping the HTTP status for diagnostics."""
-    resp = requests.get(url, headers=HEADERS, timeout=25, allow_redirects=True)
-    resp.raise_for_status()
-    parsed = feedparser.parse(resp.content)
-    parsed.http_status = resp.status_code
-    return parsed
 
 
 def _norm(text: str) -> str:
@@ -158,7 +194,6 @@ def pick_summary(entry, title: str) -> str:
         if nl == nt:
             continue  # pure echo of the headline
         if nl.startswith(nt):
-            # Body that opens by restating the title - keep what follows.
             rest = line[len(title):].lstrip(" -–—:.").strip()
             if len(rest) < 40:
                 continue
@@ -167,13 +202,47 @@ def pick_summary(entry, title: str) -> str:
     return ""
 
 
+def pick_link(entry, feed_link: str, fallback: str = "") -> str:
+    """A usable URL for an item.
+
+    Podcast feeds routinely omit <link> on items and carry only an audio
+    enclosure, so fall back rather than dropping the item on the floor.
+    """
+    if entry.get("link"):
+        return entry["link"]
+    for ref in entry.get("links", []) or []:
+        if ref.get("rel") == "alternate" and ref.get("href"):
+            return ref["href"]
+    if fallback:
+        return fallback
+    if feed_link:
+        return feed_link
+    for ref in entry.get("links", []) or []:
+        if ref.get("href"):
+            return ref["href"]
+    return ""
+
+
 def parse_date(entry) -> datetime | None:
     for key in ("published_parsed", "updated_parsed"):
         stamp = entry.get(key)
         if stamp:
             return datetime.fromtimestamp(calendar.timegm(stamp), timezone.utc)
+    # rss2json hands back a plain string instead of a parsed struct.
+    raw = entry.get("published", "")
+    if raw:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"):
+            try:
+                when = datetime.strptime(raw, fmt)
+                return when if when.tzinfo else when.replace(tzinfo=timezone.utc)
+            except ValueError:
+                pass
     return None
 
+
+# --------------------------------------------------------------------------
+# assembly
+# --------------------------------------------------------------------------
 
 def collect(cfg: dict) -> tuple[list[Item], list[str]]:
     settings = cfg.get("settings", {})
@@ -187,24 +256,23 @@ def collect(cfg: dict) -> tuple[list[Item], list[str]]:
     for src in cfg.get("sources", []):
         name = src.get("name", "Unnamed")
         try:
-            feed = fetch_feed(src["url"])
-        except Exception as exc:  # network, DNS, HTTP error - keep going
-            problems.append(f"{name}: {type(exc).__name__} - {exc}")
+            feed = fetch_feed(src["url"], src.get("via", "auto"))
+        except Exception as exc:  # network, DNS, HTTP, malformed - keep going
+            problems.append(f"{name}: {type(exc).__name__} - {str(exc)[:120]}")
             continue
         if not feed.entries:
-            problems.append(
-                f"{name}: parsed 0 entries (HTTP {feed.http_status})"
-            )
+            problems.append(f"{name}: parsed 0 entries (HTTP {feed.status})")
             continue
 
         kept = 0
         cap = src.get("max_items", default_cap)
-        # A weekly source would always look empty under a daily window, so
-        # each source may widen its own lookback. max_age_hours: 0 turns the
-        # age filter off entirely - use it for anything that publishes a few
-        # times a year, where you always want the latest one on the page.
+        # A weekly source would always look empty under a daily window, so each
+        # source may widen its own lookback. max_age_hours: 0 turns the age
+        # filter off entirely - use it for anything that publishes a few times
+        # a year, where you always want the latest one on the page.
         window = src.get("max_age_hours", default_age)
         cutoff = now - timedelta(hours=window) if window else None
+
         for entry in feed.entries:
             if kept >= cap:
                 break
@@ -212,17 +280,16 @@ def collect(cfg: dict) -> tuple[list[Item], list[str]]:
             if cutoff and when and when < cutoff:
                 continue
             title = WHITESPACE.sub(" ", html.unescape(entry.get("title", ""))).strip()
-            link = pick_link(entry, feed, src.get("link_fallback", ""))
+            link = pick_link(entry, feed.link, src.get("link_fallback", ""))
             if not title or not link:
                 continue
-            summary = pick_summary(entry, title)
             items.append(
                 Item(
                     source=name,
                     section=src.get("section", "General"),
                     title=title,
                     link=link,
-                    summary=summary,
+                    summary=pick_summary(entry, title),
                     published=when,
                 )
             )
@@ -230,7 +297,6 @@ def collect(cfg: dict) -> tuple[list[Item], list[str]]:
 
         if kept == 0:
             problems.append(f"{name}: nothing inside the time window")
-
 
     return items, problems
 
@@ -251,44 +317,61 @@ def render(items: list[Item], problems: list[str], cfg: dict) -> str:
         rows = [i for i in items if i.section == section]
         if not rows:
             continue
-        rows.sort(key=lambda i: i.published or datetime.min.replace(tzinfo=timezone.utc),
-                  reverse=True)
+        rows.sort(
+            key=lambda i: i.published or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
         entries = []
         for i in rows:
-            summary = f'<p class="sum">{html.escape(i.summary)}</p>' if i.summary else ""
+            summary = ""
+            if i.summary:
+                summary = '<p class="sum">' + html.escape(i.summary) + "</p>"
             entries.append(
                 '<li class="item">'
-                f'<div class="meta"><span class="src">{html.escape(i.source)}</span>'
-                f'<span class="age">{i.age}</span></div>'
-                f'<a class="hed" href="{html.escape(i.link)}">{html.escape(i.title)}</a>'
-                f"{summary}</li>"
+                '<div class="meta"><span class="src">'
+                + html.escape(i.source)
+                + '</span><span class="age">'
+                + i.age
+                + '</span></div><a class="hed" href="'
+                + html.escape(i.link)
+                + '">'
+                + html.escape(i.title)
+                + "</a>"
+                + summary
+                + "</li>"
             )
         blocks.append(
-            f'<section><h2>{html.escape(section)}</h2>'
-            f'<ul>{"".join(entries)}</ul></section>'
+            "<section><h2>"
+            + html.escape(section)
+            + "</h2><ul>"
+            + "".join(entries)
+            + "</ul></section>"
         )
 
     note = ""
     if problems:
-        lines = "".join(f"<li>{html.escape(p)}</li>" for p in problems)
+        lines = "".join("<li>" + html.escape(p) + "</li>" for p in problems)
         note = (
             '<details class="problems"><summary>'
-            f"{len(problems)} source(s) quiet or failing</summary>"
-            f"<ul>{lines}</ul></details>"
+            + str(len(problems))
+            + " source(s) quiet or failing</summary><ul>"
+            + lines
+            + "</ul></details>"
         )
 
     body = "".join(blocks) or '<p class="empty">Nothing new inside the time window.</p>'
 
     stamp = (
-        f'<span>{now.strftime("%A")}, {now.strftime("%B")} {now.day}</span>'
-        f'<span class="sep">/</span>'
-        f'<span>built {now.strftime("%I:%M %p").lstrip("0").lower()}</span>'
+        "<span>"
+        + now.strftime("%A") + ", " + now.strftime("%B") + " " + str(now.day)
+        + '</span><span class="sep">/</span><span>built '
+        + now.strftime("%I:%M %p").lstrip("0").lower()
+        + "</span>"
     )
-
     n_sources = len({i.source for i in items})
     count = (
-        f"{len(items)} item{'s' if len(items) != 1 else ''} "
-        f"from {n_sources} source{'s' if n_sources != 1 else ''}"
+        str(len(items)) + " item" + ("s" if len(items) != 1 else "")
+        + " from " + str(n_sources) + " source" + ("s" if n_sources != 1 else "")
     )
 
     tpl = (ROOT / "template.html").read_text(encoding="utf-8")
