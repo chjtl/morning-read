@@ -2,6 +2,8 @@
 
 One page, built fresh every morning, holding everything I read.
 
+**Live: https://chjtl.github.io/morning-read/**
+
 ## Adding a source
 
 Edit `config.yaml`. Nothing else. A source is three lines:
@@ -19,6 +21,7 @@ Optional per source:
 | `max_items` | One feed is loud and crowds the page |
 | `max_age_hours` | Anything not daily. Weekly `192`, monthly `780`, **`0` = no age filter, always show the latest** (for a few-times-a-year source like a memo writer) |
 | `link_fallback` | The feed omits per-item links, which podcast feeds usually do |
+| `via` | Force a fetch route: `rss2json` to skip the direct attempt. Rarely needed - the fallback below is automatic |
 
 ## Testing a feed before you add it
 
@@ -58,6 +61,28 @@ hand from the repo's Actions tab.
   subtitle, and Anthropic gives nothing.
 - **LinkedIn has no feeds.** Posts by individuals have to come through a
   third-party generator (RSS.app) or a Google Alerts RSS feed.
+- **Substack blocks the build.** Cloudflare returns 403 to datacenter IPs, so
+  Substack feeds work from a home connection and fail on GitHub's runners.
+  `build.py` tries direct first and falls back to rss2json on a blocking
+  status, automatically - so a Substack added later needs no special handling.
+  I probed the alternatives from an actual runner: the Substack archive API,
+  allorigins, r.jina.ai and codetabs all get challenged or error out.
+  rss2json was the only one that got through, which does mean the two
+  Substacks depend on a third party staying up. If it ever disappears, the
+  failure note at the bottom of the page will say so.
+
+## When a feed breaks
+
+The page's own footer note tells you which source failed and why, including
+the HTTP status. To dig further:
+
+```
+python probe.py "https://example.com/feed"     # from here
+gh workflow run probe.yml                       # from a GitHub runner
+```
+
+The second one matters when a feed works on your machine but not in the
+build - that gap is almost always an IP block, not a bug.
 
 ## Files
 
@@ -67,4 +92,5 @@ hand from the repo's Actions tab.
 | `template.html` | Only to restyle. |
 | `build.py` | No. Fetch, clean, render. |
 | `probe.py` | No. Feed-testing helper. |
+| `ci_probe.py` | No. Tests fetch routes from a blocked network. |
 | `docs/index.html` | Never - generated. |
