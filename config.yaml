@@ -1,0 +1,86 @@
+# ---------------------------------------------------------------------------
+# Morning Read - source list
+#
+# This is the only file you need to touch. Add a source by copying any block
+# below and changing the three lines. Delete a source by deleting its block.
+# Comment one out for a while with a leading "#" on each line.
+#
+# Each source needs:
+#   name    - what shows up as the label on each item
+#   url     - the RSS/Atom feed address
+#   section - which heading it appears under (make up any name you like;
+#             sections appear in the order listed under settings.sections)
+#
+# Optional per source:
+#   max_items     - cap this one source (default settings.max_per_source)
+#   link_fallback - where taps go when a feed omits per-item links
+#                   (podcast feeds usually do)
+#   max_age_hours - widen the lookback for this source only. Use this for
+#                   anything weekly, or it will always look empty:
+#                     daily   -> leave it off
+#                     weekly  -> 192   (8 days)
+#                     monthly -> 780   (32 days)
+#                     rare    -> 0     (no age filter - always show the
+#                                       latest, for a few-times-a-year source)
+# ---------------------------------------------------------------------------
+
+settings:
+  title: Morning Read
+  timezone: America/New_York
+
+  # Hide anything older than this many hours. 36 keeps the page current but
+  # still catches a late-evening post you missed. Bump to 72+ if a section
+  # looks empty on Mondays.
+  max_age_hours: 36
+
+  # Default cap per source, so one prolific feed can't swamp the page.
+  max_per_source: 5
+
+  # Section order on the page. Any section named by a source but missing
+  # from this list gets appended at the bottom.
+  sections:
+    - AI
+    - Markets
+    - Big Picture
+    - LinkedIn
+
+sources:
+  # ---- AI -----------------------------------------------------------------
+  - name: OpenAI
+    url: https://openai.com/news/rss.xml
+    section: AI
+
+  # Anthropic publishes NO official feed (anthropic.com/rss.xml is a 404).
+  # This is a community-maintained mirror that scrapes their newsroom. It
+  # works, but it is somebody else's cron job - if it goes stale, the page
+  # will say so in the "quiet or failing" note at the bottom.
+  - name: Anthropic
+    url: https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml
+    section: AI
+    max_age_hours: 240   # they post in bursts, not daily
+
+  # ---- Big Picture --------------------------------------------------------
+  - name: Rational Optimist
+    url: https://rationaloptimistsociety.substack.com/feed
+    section: Big Picture
+    max_age_hours: 96
+
+  # Diamandis's Substack. This is where the Moonshots episode recaps land,
+  # mixed in with his other essays.
+  - name: Metatrends
+    url: https://metatrends.substack.com/feed
+    section: Big Picture
+    max_age_hours: 96
+
+  # ---- Markets ------------------------------------------------------------
+  # Howard Marks's Oaktree memos, published as a podcast feed - the audio is
+  # incidental, the descriptions are real prose. He writes a handful a year,
+  # so the age filter is off and we always show the current memo.
+  - name: Howard Marks
+    url: https://rss.art19.com/the-memo-by-howard-marks
+    section: Markets
+    max_age_hours: 0
+    max_items: 1
+    # Podcast feeds carry no per-item link, so send taps to the memo archive
+    # rather than to a raw MP3.
+    link_fallback: https://www.oaktreecapital.com/insights/memo

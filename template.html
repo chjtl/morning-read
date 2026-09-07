@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>__TITLE__</title>
+<style>
+  :root {
+    --bg:#faf9f7; --card:#ffffff; --ink:#191817; --muted:#78736c;
+    --rule:#e7e3dc; --accent:#8a6240; --shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#121211; --card:#1c1b1a; --ink:#eceae7; --muted:#918b83;
+      --rule:#2c2a28; --accent:#c9a077; --shadow:none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header {
+    padding:28px 20px 18px; max-width:680px; margin:0 auto;
+    border-bottom:1px solid var(--rule);
+  }
+  h1 { margin:0; font-size:26px; letter-spacing:-.02em; font-weight:650; }
+  .stamp { margin:5px 0 0; color:var(--muted); font-size:13px; }
+  main { max-width:680px; margin:0 auto; padding:0 20px 64px; }
+  section { margin-top:34px; }
+  h2 {
+    margin:0 0 12px; font-size:12px; font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--accent);
+  }
+  ul { list-style:none; margin:0; padding:0; }
+  .item {
+    background:var(--card); border:1px solid var(--rule); border-radius:10px;
+    padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow);
+  }
+  .meta {
+    display:flex; gap:8px; align-items:baseline;
+    font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:6px;
+  }
+  .src { font-weight:650; }
+  .age:before { content:"\00b7"; margin-right:8px; }
+  .hed {
+    display:block; color:var(--ink); text-decoration:none;
+    font-size:17px; line-height:1.35; font-weight:600; letter-spacing:-.01em;
+  }
+  .hed:active { color:var(--accent); }
+  .sum { margin:7px 0 0; color:var(--muted); font-size:14.5px; line-height:1.45; }
+  .empty { color:var(--muted); margin-top:34px; }
+  .problems {
+    margin-top:40px; font-size:12.5px; color:var(--muted);
+    border-top:1px solid var(--rule); padding-top:14px;
+  }
+  .problems summary { cursor:pointer; }
+  .problems ul { margin:8px 0 0; padding-left:18px; list-style:disc; }
+  .problems li { margin:3px 0; }
+  @media (hover:hover) { .hed:hover { color:var(--accent); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>__TITLE__</h1>
+  <p class="stamp">__STAMP__</p>
+</header>
+<main>__BODY____NOTE__</main>
+</body>
+</html>
