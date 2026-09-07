@@ -84,3 +84,24 @@ sources:
     # Podcast feeds carry no per-item link, so send taps to the memo archive
     # rather than to a raw MP3.
     link_fallback: https://www.oaktreecapital.com/insights/memo
+
+# ---------------------------------------------------------------------------
+# Bookmarks: things with no feed anywhere.
+#
+# LinkedIn publishes no feed for individuals, and every route out was tested
+# and failed (see README). These are plain links, not content - they put the
+# profile one tap from this page rather than off it. Delete the block to drop
+# a person; the rest of the page is unaffected.
+# ---------------------------------------------------------------------------
+bookmarks:
+  - name: Justin Gohn
+    title: Recent activity on LinkedIn
+    url: https://www.linkedin.com/in/toprealestateappraiser/recent-activity/all/
+    section: LinkedIn
+    note: CRE appraisal, AI in valuation. No feed exists - this is a tap-through.
+
+  - name: Mitch Bollinger
+    title: Recent activity on LinkedIn
+    url: https://www.linkedin.com/in/mitch-bollinger-cfa-caia-8b497a2/recent-activity/all/
+    section: LinkedIn
+    note: Real estate markets, REITs, macro charts. No feed exists - tap-through.

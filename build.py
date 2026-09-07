@@ -298,6 +298,21 @@ def collect(cfg: dict) -> tuple[list[Item], list[str]]:
         if kept == 0:
             problems.append(f"{name}: nothing inside the time window")
 
+    # Sources with no feed anywhere. These are links, not content - LinkedIn
+    # posts by individuals can't be pulled by any legitimate route, so put
+    # them one tap from the page instead of nowhere on it.
+    for mark in cfg.get("bookmarks", []) or []:
+        items.append(
+            Item(
+                source=mark.get("name", "Link"),
+                section=mark.get("section", "General"),
+                title=mark.get("title", mark.get("name", "Link")),
+                link=mark.get("url", ""),
+                summary=mark.get("note", ""),
+                published=None,
+            )
+        )
+
     return items, problems
 
 
